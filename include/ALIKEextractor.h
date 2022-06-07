@@ -76,7 +76,7 @@ class ALike : public ALnet {
 public:
     ALike(int c1 = 32, int c2 = 64, int c3 = 128, int c4 = 128, int dim = 128, bool single_head = false,
           int radius_ = 2, int top_k_ = 500, float scores_th_ = 0.5, int n_limit_ = 5000);
-    std::vector<cv::Mat> & forward(const cv::Mat &img, int image_size_max, bool sort, bool sub_pixel);
+    std::vector<Tensor> & forward(const cv::Mat &img, const torch::Device device, bool sub_pixel);
 
 protected:
     std::vector<Tensor> & extract_dense_map(Tensor &image);

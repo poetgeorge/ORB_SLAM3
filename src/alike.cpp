@@ -47,16 +47,38 @@ std::vector<Tensor> & ORB_SLAM3::ALike::extract_dense_map(Tensor &image) {
     return res;
 }
 
-std::vector<cv::Mat> & ORB_SLAM3::ALike::forward(const cv::Mat &img, int image_size_max, bool sort, bool sub_pixel) {
-    int H, W, three;
-    H = img.size(0);
-    W = img.size(1);
-    three = img.size(2);
-    assert(three == 3);
-    Tensor image = img.clone();
-    int maxhw = std::max(H, W);
-    if(maxhw > image_size_max){
-        float ratio = image_size_max / static_cast<float>(maxhw);
-        image
+std::vector<Tensor> & ORB_SLAM3::ALike::forward(const cv::Mat &img, const torch::Device device, bool sub_pixel) {
+    int H = img.rows;
+    int W = img.cols;
+    int three = img.channels();
+    assert(three==3);
+
+    auto image_to_tensor = [](const cv::Mat & img, const torch::Device & device){
+        const auto height = img.rows;
+        const auto width = img.cols;
+        std::vector<int64_t> dims = {1, height, width, 1};
+        auto img_var = torch::from_blob(img.data, dims, torch::kFloat32).to(device);
+        img_var = img_var.permute({0, 3, 1, 2});
+        img_var.set_requires_grad(false);
+        return img_var;
+    };
+
+    cv::Mat im_float;
+    img.convertTo(im_float, CV_32FC3);
+    auto img_var = image_to_tensor(im_float.clone(), device);
+
+    std::vector<Tensor> result;
+    {
+        torch::NoGradGuard no_grad;
+        auto maps = extract_dense_map(img_var);
+        Tensor descriptor_map = maps[1];
+        Tensor scores_map = maps[0];
+        auto res = dkd.forward(scores_map, descriptor_map, sub_pixel);
+        auto keypoints = res[0][0];
+        auto descriptors = res[1][0];
+        auto scores = res[2][0];
+        result = {keypoints, descriptors, scores, scores_map};
     }
+
+    return result;
 }
